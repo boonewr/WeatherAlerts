@@ -1,156 +1,274 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>State Weather Alerts</title>
-    
-    <!-- React & ReactDOM -->
+    <title>SkyAlert | Weather Intelligence</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- React, Babel, Axios -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Axios -->
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-container": "#00253f",
+                        "tertiary-container": "#def0fc",
+                        "on-primary": "#ecf3ff",
+                        "surface-dim": "#d0d5d8",
+                        "secondary-container": "#a4d8ff",
+                        "primary-container": "#2aa7ff",
+                        "surface-container-highest": "#d9dde0",
+                        "primary-dim": "#005385",
+                        "tertiary": "#4d5e68",
+                        "outline-variant": "#abadaf",
+                        "error": "#b31b25",
+                        "secondary": "#00618d",
+                        "on-background": "#2c2f31",
+                        "surface-container-low": "#eef1f3",
+                        "on-secondary-container": "#004c6f",
+                        "surface-variant": "#d9dde0",
+                        "surface-container": "#e5e9eb",
+                        "on-surface-variant": "#595c5e",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#2aa7ff",
+                        "secondary-fixed": "#a4d8ff",
+                        "on-surface": "#2c2f31",
+                        "primary": "#005f98",
+                        "surface-bright": "#f5f7f9",
+                        "surface": "#f5f7f9",
+                        "error-container": "#fb5151",
+                        "on-error": "#ffefee",
+                        "secondary-dim": "#00557b",
+                        "on-secondary": "#e9f4ff",
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Manrope"],
+                        "label": ["Inter"],
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        };
+    </script>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
     <style>
-        #map { height: 400px; width: 100%; border-radius: 0.5rem; z-index: 0; }
-        .leaflet-popup-content-wrapper { border-radius: 0.5rem; background-color: #0f172a; color: #f1f5f9; border: 1px solid #334155; }
-        .leaflet-popup-tip { background-color: #0f172a; }
-        body { background-color: #020617; color: #e2e8f0; }
+        body { min-height: max(884px, 100dvh); }
+        #map { height: 100%; width: 100%; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .leaflet-popup-content-wrapper { border-radius: 0.5rem; }
+        .leaflet-container { font-family: Inter, sans-serif; }
     </style>
 </head>
-<body class="min-h-screen antialiased">
+<body class="bg-surface font-body text-on-surface selection:bg-primary-container selection:text-on-primary-container min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // State Name to Abbreviation Mapping
         const STATE_MAPPING = {
-            "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
-            "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
-            "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
-            "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-            "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
-            "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
-            "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
-            "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-            "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
-            "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
-            "District of Columbia": "DC", "Puerto Rico": "PR"
+            "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA",
+            "Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA",
+            "Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA",
+            "Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD",
+            "Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO",
+            "Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ",
+            "New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH",
+            "Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC",
+            "South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT",
+            "Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY",
+            "District of Columbia":"DC","Puerto Rico":"PR"
         };
 
-        const AlertCard = ({ alert, type }) => {
-            const isActive = type === 'active';
-            const borderClass = isActive ? 'border-l-4 border-red-500 bg-red-950/20' : 'border-l-4 border-slate-600 bg-slate-900/40 opacity-80';
-            
-            const formatTime = (isoString) => {
-                return new Date(isoString).toLocaleString([], { 
-                    weekday: 'short', hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' 
-                });
-            };
+        const getAlertIcon = (event) => {
+            const e = (event || "").toLowerCase();
+            if (e.includes("flood")) return "water_drop";
+            if (e.includes("tornado")) return "tornado";
+            if (e.includes("wind") || e.includes("gale")) return "air";
+            if (e.includes("snow") || e.includes("winter") || e.includes("ice") || e.includes("blizzard") || e.includes("freeze") || e.includes("frost")) return "weather_snowy";
+            if (e.includes("heat")) return "thermostat";
+            if (e.includes("thunder") || e.includes("storm") || e.includes("squall")) return "thunderstorm";
+            if (e.includes("fire") || e.includes("red flag")) return "local_fire_department";
+            if (e.includes("fog")) return "foggy";
+            if (e.includes("hurricane") || e.includes("tropical")) return "cyclone";
+            return "warning";
+        };
 
+        const getWeatherIcon = (code) => {
+            if (code === 0) return "wb_sunny";
+            if (code <= 3) return "partly_cloudy_day";
+            if (code <= 48) return "foggy";
+            if (code <= 67) return "rainy";
+            if (code <= 77) return "weather_snowy";
+            if (code <= 82) return "rainy";
+            return "thunderstorm";
+        };
+
+        const getUVLabel = (uv) => {
+            if (uv <= 2) return "Low";
+            if (uv <= 5) return "Moderate";
+            if (uv <= 7) return "High";
+            if (uv <= 10) return "V. High";
+            return "Extreme";
+        };
+
+        const timeAgo = (iso) => {
+            const diff = Date.now() - new Date(iso).getTime();
+            const m = Math.floor(diff / 60000);
+            if (m < 60) return `${m}m ago`;
+            const h = Math.floor(m / 60);
+            if (h < 24) return `${h}h ago`;
+            return `${Math.floor(h / 24)}d ago`;
+        };
+
+        const fmtTime = (iso) => new Date(iso).toLocaleString([], {
+            weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+
+        // ── Active Alert Card (prominent, glass panel) ────────────────────────
+        const ActiveAlertCard = ({ alert }) => {
+            const [expanded, setExpanded] = useState(false);
+            const icon = getAlertIcon(alert.properties.event);
             return (
-                <div className={`p-4 mb-3 rounded border border-white/5 shadow-lg ${borderClass}`}>
-                    <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-bold text-lg leading-tight text-slate-100">{alert.properties.event}</h3>
-                        {isActive && <span className="text-xs font-bold px-2 py-1 bg-red-900/40 text-red-200 border border-red-800 rounded-full">Active</span>}
+                <div className="glass-panel p-6 rounded-2xl hover:shadow-2xl transition-all duration-500 flex items-start gap-5 border-l-4 border-primary">
+                    <div className="bg-primary/10 p-3 rounded-xl flex-shrink-0">
+                        <span className="material-symbols-outlined text-primary text-2xl">{icon}</span>
                     </div>
-                    <p className="text-xs text-slate-400 font-mono mb-2">{alert.properties.areaDesc}</p>
-                    <div className="text-sm text-slate-300 space-y-1">
-                        <p><span className="font-semibold text-slate-500">Effective:</span> {formatTime(alert.properties.effective)}</p>
-                        <p><span className="font-semibold text-slate-500">Expires:</span> {formatTime(alert.properties.expires)}</p>
-                    </div>
-                    <details className="mt-2 text-sm text-blue-400 cursor-pointer group">
-                        <summary className="hover:text-blue-300 focus:outline-none transition-colors">Show Description</summary>
-                        <div className="mt-2 p-3 bg-black/40 rounded border border-white/10 text-xs whitespace-pre-wrap font-mono text-slate-300 max-h-40 overflow-y-auto">
-                            {alert.properties.description || "No description available."}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1 gap-2">
+                            <h4 className="text-base font-headline font-bold text-on-surface leading-tight">{alert.properties.event}</h4>
+                            <span className="text-xs font-label text-on-surface-variant flex-shrink-0">{timeAgo(alert.properties.effective)}</span>
                         </div>
-                    </details>
+                        <p className="text-xs text-on-surface-variant font-label mb-2">{alert.properties.areaDesc}</p>
+                        <p className="text-on-surface-variant text-sm leading-relaxed font-body" style={{display:'-webkit-box',WebkitLineClamp:expanded?'unset':2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
+                            {alert.properties.headline || alert.properties.description || "No description available."}
+                        </p>
+                        <div className="flex gap-3 mt-4">
+                            <button onClick={() => setExpanded(!expanded)}
+                                className="px-4 py-2 bg-gradient-to-r from-primary to-primary-container text-white text-xs font-semibold rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
+                                {expanded ? "Hide Details" : "View Details"}
+                            </button>
+                        </div>
+                        {expanded && (
+                            <div className="mt-3 space-y-1 text-xs text-on-surface-variant font-label">
+                                <p><span className="font-semibold">Effective:</span> {fmtTime(alert.properties.effective)}</p>
+                                <p><span className="font-semibold">Expires:</span> {fmtTime(alert.properties.expires)}</p>
+                                <div className="mt-2 p-3 bg-black/5 rounded-lg border border-outline-variant/20 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                                    {alert.properties.description || "No description available."}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         };
 
-        const CollapsibleSection = ({ title, count, children, isOpenDefault = false, color = "slate", icon }) => {
-            const [isOpen, setIsOpen] = useState(isOpenDefault);
-            
-            const colorClasses = {
-                red: "bg-red-950/10 border-red-900/30 text-red-200",
-                slate: "bg-slate-900/50 border-slate-800 text-slate-200",
-                gray: "bg-slate-950/50 border-slate-900 text-slate-400",
-            };
-
+        // ── Compact Alert Card (statewide / recent grid) ──────────────────────
+        const CompactAlertCard = ({ alert }) => {
+            const [expanded, setExpanded] = useState(false);
+            const icon = getAlertIcon(alert.properties.event);
             return (
-                <div className={`border rounded-xl overflow-hidden mb-4 backdrop-blur-sm ${colorClasses[color] || colorClasses.slate}`}>
-                    <button 
-                        onClick={() => setIsOpen(!isOpen)} 
-                        className="w-full px-5 py-4 flex items-center justify-between text-left focus:outline-none hover:bg-white/5 transition-colors"
-                    >
-                        <div className="flex items-center gap-3 font-bold text-lg">
-                            <span className={color === 'red' ? 'text-red-500' : 'text-slate-500'}>{icon}</span>
-                            <span>{title}</span>
-                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 font-mono opacity-60">
-                                {count}
-                            </span>
+                <div className="bg-white/40 p-4 rounded-xl hover:bg-white/60 transition-colors cursor-pointer" onClick={() => setExpanded(!expanded)}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                            <span className="material-symbols-outlined text-slate-500 text-lg">{icon}</span>
                         </div>
-                        <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            className={`w-5 h-5 transition-transform duration-300 opacity-50 ${isOpen ? 'rotate-180' : ''}`} 
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                        >
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </button>
-                    
-                    {isOpen && (
-                        <div className="p-4 border-t border-white/5 bg-black/20 space-y-1">
-                            {count > 0 ? children : <p className="text-sm italic text-slate-600 pl-2">No alerts found in this category.</p>}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{alert.properties.event}</p>
+                            <p className="text-xs text-on-surface-variant truncate">
+                                {alert.properties.areaDesc?.split(';')[0]?.trim()} • {timeAgo(alert.properties.effective)}
+                            </p>
+                        </div>
+                        <span className="material-symbols-outlined text-slate-400 text-sm flex-shrink-0" style={{fontSize:'16px'}}>
+                            {expanded ? 'expand_less' : 'expand_more'}
+                        </span>
+                    </div>
+                    {expanded && (
+                        <div className="mt-3 text-xs text-on-surface-variant font-label space-y-1 border-t border-outline-variant/10 pt-3">
+                            <p><span className="font-semibold">Effective:</span> {fmtTime(alert.properties.effective)}</p>
+                            <p><span className="font-semibold">Expires:</span> {fmtTime(alert.properties.expires)}</p>
+                            {alert.properties.headline && <p className="mt-1">{alert.properties.headline}</p>}
                         </div>
                     )}
                 </div>
             );
         };
 
+        // ── Collapsible Section ────────────────────────────────────────────────
+        const CollapsibleSection = ({ title, count, icon, defaultOpen = false, children }) => {
+            const [open, setOpen] = useState(defaultOpen);
+            return (
+                <div className="bg-surface-container-low/40 rounded-3xl overflow-hidden">
+                    <button onClick={() => setOpen(!open)}
+                        className="w-full px-8 py-5 flex items-center justify-between text-left hover:bg-white/30 transition-colors">
+                        <span className="text-base font-headline font-bold flex items-center gap-2">
+                            <span className="material-symbols-outlined text-slate-400" style={{fontSize:'20px'}}>{icon}</span>
+                            {title}
+                            <span className="ml-1 text-xs px-2 py-0.5 bg-white/50 rounded-full text-on-surface-variant font-label">{count}</span>
+                        </span>
+                        <span className={`material-symbols-outlined text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>expand_more</span>
+                    </button>
+                    {open && (
+                        <div className="px-8 pb-6 border-t border-outline-variant/10">
+                            {count > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                    {children}
+                                </div>
+                            ) : (
+                                <p className="text-sm italic text-on-surface-variant mt-4 font-label">No alerts in this category.</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ── Main App ──────────────────────────────────────────────────────────
         const App = () => {
             const [location, setLocation] = useState({ lat: null, lon: null, stateCode: null, stateName: null, countyName: null });
-            const [loading, setLoading] = useState(true);
+            const [alertsLoading, setAlertsLoading] = useState(true);
             const [error, setError] = useState(null);
-            
-            // Alert Buckets
             const [localActiveAlerts, setLocalActiveAlerts] = useState([]);
             const [statewideActiveAlerts, setStatewideActiveAlerts] = useState([]);
             const [localRecentAlerts, setLocalRecentAlerts] = useState([]);
             const [statewideRecentAlerts, setStatewideRecentAlerts] = useState([]);
-            
+            const [weather, setWeather] = useState(null);
+            const [forecast, setForecast] = useState([]);
+
             const mapRef = useRef(null);
             const mapInstanceRef = useRef(null);
             const layerGroupRef = useRef(null);
 
-            // Helper: Categorize alerts into Local vs Statewide
             const categorizeAlerts = (alerts, countyName) => {
-                let local = [];
-                let statewide = [];
-
+                let local = [], statewide = [];
                 if (countyName) {
-                    const userCounty = countyName.toLowerCase();
+                    const uc = countyName.toLowerCase();
                     alerts.forEach(alert => {
-                        const areaDesc = (alert.properties.areaDesc || "").toLowerCase();
-                        const areas = areaDesc.split(';').map(s => s.trim());
-                        if (areas.some(area => area === userCounty || area.includes(userCounty))) {
-                            local.push(alert);
-                        } else {
-                            statewide.push(alert);
-                        }
+                        const areas = (alert.properties.areaDesc || "").toLowerCase().split(';').map(s => s.trim());
+                        if (areas.some(a => a === uc || a.includes(uc))) local.push(alert);
+                        else statewide.push(alert);
                     });
                 } else {
                     statewide = alerts;
@@ -158,282 +276,420 @@
                 return { local, statewide };
             };
 
-            // 1. Get Geolocation & State
+            // 1. Geolocation + reverse geocode
             useEffect(() => {
                 if (!navigator.geolocation) {
                     setError("Geolocation is not supported by your browser.");
-                    setLoading(false);
+                    setAlertsLoading(false);
                     return;
                 }
-
-                navigator.geolocation.getCurrentPosition(
-                    async (position) => {
-                        const { latitude, longitude } = position.coords;
-                        try {
-                            // Reverse Geocode to get State & County
-                            const geoRes = await axios.get(`https://nominatim.openstreetmap.org/reverse`, {
-                                params: { format: 'json', lat: latitude, lon: longitude }
-                            });
-                            
-                            const address = geoRes.data.address;
-                            const stateName = address.state;
-                            const stateCode = STATE_MAPPING[stateName];
-                            
-                            // Extract County (Nominatim usually returns "Travis County", we want "Travis" for better matching)
-                            let countyRaw = address.county || "";
-                            // Remove common suffixes to match NWS "areaDesc" style (e.g. "Travis County" -> "Travis")
-                            const countyName = countyRaw.replace(/\s+(County|Parish|Borough)$/i, "");
-
-                            if (!stateCode) {
-                                throw new Error(`Could not determine state code for: ${stateName}`);
-                            }
-
-                            setLocation({ lat: latitude, lon: longitude, stateCode, stateName, countyName });
-                        } catch (err) {
-                            console.error(err);
-                            setError("Failed to determine your state location. " + err.message);
-                            setLoading(false);
-                        }
-                    },
-                    (err) => {
-                        setError("Unable to retrieve your location. Please allow location access.");
-                        setLoading(false);
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    try {
+                        const geoRes = await axios.get(`https://nominatim.openstreetmap.org/reverse`, {
+                            params: { format: 'json', lat: latitude, lon: longitude }
+                        });
+                        const address = geoRes.data.address;
+                        const stateName = address.state;
+                        const stateCode = STATE_MAPPING[stateName];
+                        const countyName = (address.county || "").replace(/\s+(County|Parish|Borough)$/i, "");
+                        if (!stateCode) throw new Error(`Unknown state: ${stateName}`);
+                        setLocation({ lat: latitude, lon: longitude, stateCode, stateName, countyName });
+                    } catch (err) {
+                        setError("Failed to determine location. " + err.message);
+                        setAlertsLoading(false);
                     }
-                );
+                }, () => {
+                    setError("Location access denied. Please allow location access and reload.");
+                    setAlertsLoading(false);
+                });
             }, []);
 
-            // 2. Fetch Weather Alerts once State is known
+            // 2. NWS Alerts
             useEffect(() => {
                 if (!location.stateCode) return;
-
                 const fetchAlerts = async () => {
                     try {
-                        const now = new Date();
-                        const sevenDaysAgo = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000)); // 6 days to be safe
-                        
-                        // Format: YYYY-MM-DDThh:mm:ssZ (No milliseconds)
-                        const startTime = sevenDaysAgo.toISOString().split('.')[0] + "Z";
-                        console.log("Requesting alerts since:", startTime);
-
-                        const config = {
-                            headers: { 'Accept': 'application/geo+json' },
-                            // Active endpoint often rejects 'limit' or extra params. 
-                            // It returns ALL active alerts for the area by default.
-                            params: { area: location.stateCode } 
-                        };
-
-                        // Fetch Active
-                        const activePromise = axios.get(`https://api.weather.gov/alerts/active`, config);
-
-                        // Fetch History
-                        // Note: The history endpoint is simply /alerts
-                        const historyConfig = {
-                            headers: { 'Accept': 'application/geo+json' },
-                            params: { 
-                                area: location.stateCode, 
-                                start: startTime,
-                                limit: 200 
-                            }
-                        };
-                        const historyPromise = axios.get(`https://api.weather.gov/alerts`, historyConfig);
-
-                        const [activeRes, historyRes] = await Promise.all([activePromise, historyPromise]);
-
+                        const startTime = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('.')[0] + "Z";
+                        const [activeRes, historyRes] = await Promise.all([
+                            axios.get(`https://api.weather.gov/alerts/active`, {
+                                headers: { Accept: 'application/geo+json' },
+                                params: { area: location.stateCode }
+                            }),
+                            axios.get(`https://api.weather.gov/alerts`, {
+                                headers: { Accept: 'application/geo+json' },
+                                params: { area: location.stateCode, start: startTime, limit: 200 }
+                            })
+                        ]);
                         const active = activeRes.data.features || [];
                         const history = historyRes.data.features || [];
-
-                        // Filter Recent: Remove items that are currently active from history list
                         const activeIds = new Set(active.map(a => a.id));
                         const recent = history.filter(a => !activeIds.has(a.id));
-
-                        // Split Alerts: Local vs Statewide
-                        const categorizedActive = categorizeAlerts(active, location.countyName);
-                        const categorizedRecent = categorizeAlerts(recent, location.countyName);
-
-                        setLocalActiveAlerts(categorizedActive.local);
-                        setStatewideActiveAlerts(categorizedActive.statewide);
-                        setLocalRecentAlerts(categorizedRecent.local);
-                        setStatewideRecentAlerts(categorizedRecent.statewide);
-                        
-                        setLoading(false);
-
+                        const ca = categorizeAlerts(active, location.countyName);
+                        const cr = categorizeAlerts(recent, location.countyName);
+                        setLocalActiveAlerts(ca.local);
+                        setStatewideActiveAlerts(ca.statewide);
+                        setLocalRecentAlerts(cr.local);
+                        setStatewideRecentAlerts(cr.statewide);
+                        setAlertsLoading(false);
                     } catch (err) {
-                        console.error("API Error details:", err);
                         let msg = "Failed to fetch weather alerts.";
-                        if (err.response) {
-                            console.log("Error Response Data:", err.response.data);
-                            msg += ` (Status: ${err.response.status})`;
-                            if (err.response.data && err.response.data.detail) {
-                                msg += `: ${err.response.data.detail}`;
-                            } else if (err.response.data && err.response.data.title) {
-                                msg += `: ${err.response.data.title}`;
-                            }
-                        } else if (err.request) {
-                            msg += " No response received from NWS API.";
-                        } else {
-                            msg += ` ${err.message}`;
-                        }
+                        if (err.response?.data?.detail) msg += `: ${err.response.data.detail}`;
+                        else if (err.response?.data?.title) msg += `: ${err.response.data.title}`;
+                        else msg += ` ${err.message}`;
                         setError(msg);
-                        setLoading(false);
+                        setAlertsLoading(false);
                     }
                 };
-
                 fetchAlerts();
             }, [location.stateCode, location.countyName]);
 
-            // 3. Initialize & Update Map
+            // 3. Open-Meteo current weather + 48h forecast
             useEffect(() => {
-                if (!location.lat || !mapRef.current) return;
+                if (!location.lat) return;
+                const fetchWeather = async () => {
+                    try {
+                        const res = await axios.get(`https://api.open-meteo.com/v1/forecast`, {
+                            params: {
+                                latitude: location.lat,
+                                longitude: location.lon,
+                                current: "temperature_2m,relative_humidity_2m,surface_pressure,uv_index,visibility,weather_code,wind_speed_10m",
+                                hourly: "temperature_2m",
+                                temperature_unit: "fahrenheit",
+                                wind_speed_unit: "mph",
+                                forecast_days: 3,
+                                timezone: "auto"
+                            }
+                        });
+                        setWeather(res.data.current);
+                        // Build per-day high/low for next 2 days
+                        const { time: times, temperature_2m: temps } = res.data.hourly;
+                        const today = new Date().toISOString().split('T')[0];
+                        const dayMap = {};
+                        times.forEach((t, i) => {
+                            const d = t.split('T')[0];
+                            if (d <= today) return;
+                            if (!dayMap[d]) dayMap[d] = [];
+                            dayMap[d].push(temps[i]);
+                        });
+                        const days = Object.keys(dayMap).sort().slice(0, 2);
+                        setForecast(days.map(d => ({
+                            label: new Date(d + 'T12:00:00').toLocaleDateString([], { weekday: 'short' }),
+                            high: Math.round(Math.max(...dayMap[d])),
+                            low: Math.round(Math.min(...dayMap[d])),
+                        })));
+                    } catch (err) {
+                        console.error("Open-Meteo fetch failed:", err);
+                    }
+                };
+                fetchWeather();
+            }, [location.lat, location.lon]);
 
-                // Init Map if not exists
-                if (!mapInstanceRef.current) {
-                    mapInstanceRef.current = L.map(mapRef.current).setView([location.lat, location.lon], 8);
-                    
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    }).addTo(mapInstanceRef.current);
-
-                    // Add user marker
-                    L.marker([location.lat, location.lon]).addTo(mapInstanceRef.current)
-                        .bindPopup("You are here").openPopup();
-                    
-                    layerGroupRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-                }
+            // 4. Init Leaflet map
+            useEffect(() => {
+                if (!location.lat || !mapRef.current || mapInstanceRef.current) return;
+                mapInstanceRef.current = L.map(mapRef.current, { zoomControl: false })
+                    .setView([location.lat, location.lon], 8);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                }).addTo(mapInstanceRef.current);
+                L.control.zoom({ position: 'topright' }).addTo(mapInstanceRef.current);
+                const markerHtml = `<div style="width:14px;height:14px;background:#2aa7ff;border-radius:50%;border:3px solid white;box-shadow:0 0 15px rgba(42,167,255,0.7);"></div>`;
+                const icon = L.divIcon({ html: markerHtml, className: '', iconSize: [14, 14], iconAnchor: [7, 7] });
+                L.marker([location.lat, location.lon], { icon }).addTo(mapInstanceRef.current).bindPopup("You are here").openPopup();
+                layerGroupRef.current = L.layerGroup().addTo(mapInstanceRef.current);
             }, [location.lat]);
 
-            // 4. Draw Alert Polygons
+            // 5. Draw alert polygons
             useEffect(() => {
                 if (!mapInstanceRef.current || !layerGroupRef.current) return;
-                
-                // Clear existing layers
                 layerGroupRef.current.clearLayers();
-
-                // Helper to add polygons
-                const addAlertsToMap = (alerts, color, weight = 2) => {
-                    alerts.forEach(alert => {
-                        if (alert.geometry) {
-                            L.geoJSON(alert.geometry, {
-                                style: { color: color, weight: weight, opacity: 0.8, fillOpacity: 0.1 },
-                                onEachFeature: (feature, layer) => {
-                                    layer.bindPopup(`<b>${alert.properties.event}</b><br>${alert.properties.headline}`);
-                                }
-                            }).addTo(layerGroupRef.current);
-                        }
-                    });
-                };
-
-                // Colors for dark mode
-                addAlertsToMap(statewideRecentAlerts, '#475569', 1); // Slate-600
-                addAlertsToMap(localRecentAlerts, '#64748b', 2);     // Slate-500
-                addAlertsToMap(statewideActiveAlerts, '#ef4444', 2); // Red-500
-                addAlertsToMap(localActiveAlerts, '#f87171', 4);     // Red-400 (Brighter for visibility)
-
+                const add = (alerts, color, weight) => alerts.forEach(alert => {
+                    if (alert.geometry) {
+                        L.geoJSON(alert.geometry, {
+                            style: { color, weight, opacity: 0.8, fillOpacity: 0.1 },
+                            onEachFeature: (f, layer) => layer.bindPopup(`<b>${alert.properties.event}</b><br>${alert.properties.headline || ''}`)
+                        }).addTo(layerGroupRef.current);
+                    }
+                });
+                add(statewideRecentAlerts, '#94a3b8', 1);
+                add(localRecentAlerts, '#64748b', 2);
+                add(statewideActiveAlerts, '#0099f0', 2);
+                add(localActiveAlerts, '#005f98', 4);
             }, [localActiveAlerts, statewideActiveAlerts, localRecentAlerts, statewideRecentAlerts]);
 
+            const totalActive = localActiveAlerts.length + statewideActiveAlerts.length;
 
             if (error) {
                 return (
-                    <div className="flex items-center justify-center min-h-screen bg-black p-4">
-                        <div className="bg-slate-900 border border-red-900/50 p-8 rounded-2xl shadow-2xl text-center max-w-md">
-                            <h2 className="text-2xl font-bold text-red-500 mb-3">System Error</h2>
-                            <p className="text-slate-400 mb-6">{error}</p>
-                            <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-800 text-slate-100 rounded-lg hover:bg-slate-700 transition-all border border-white/10">Retry Connection</button>
+                    <div className="flex items-center justify-center min-h-screen p-4">
+                        <div className="glass-panel border border-red-200 p-8 rounded-2xl shadow-2xl text-center max-w-md">
+                            <span className="material-symbols-outlined text-error text-5xl mb-3 block">error</span>
+                            <h2 className="text-xl font-headline font-bold text-on-surface mb-3">Unable to Load</h2>
+                            <p className="text-on-surface-variant mb-6 font-label text-sm">{error}</p>
+                            <button onClick={() => window.location.reload()}
+                                className="px-6 py-2.5 bg-primary text-white rounded-full font-semibold hover:bg-primary-dim transition-all">
+                                Retry
+                            </button>
                         </div>
                     </div>
                 );
             }
 
             return (
-                <div className="container mx-auto max-w-4xl p-6 md:p-10">
-                    {/* Header */}
-                    <header className="mb-10 border-b border-white/10 pb-8">
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <h1 className="text-4xl font-black text-white tracking-tight uppercase">Weather Alerts</h1>
-                                {location.stateName ? (
-                                    <p className="text-slate-400 mt-2 text-lg">
-                                        Location: <span className="font-bold text-blue-400 tracking-wide">{location.countyName ? `${location.countyName.toUpperCase()} COUNTY, ` : ''}{location.stateCode}</span>
-                                    </p>
-                                ) : (
-                                     <p className="text-slate-400 mt-2 text-lg">Fetching Location...</p>
-                                )}
+                <>
+                    {/* ── Header ── */}
+                    <header className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-xl shadow-2xl shadow-slate-900/5">
+                        <div className="flex justify-between items-center px-8 h-20 max-w-7xl mx-auto">
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-sky-500 text-3xl">cloud_queue</span>
+                                <h1 className="text-2xl font-extrabold text-slate-900 font-headline tracking-tight">SkyAlert</h1>
                             </div>
-                            <div className="text-right hidden sm:block">
-                                <span className="text-xs text-slate-600 bg-slate-900/50 px-3 py-1 rounded-full border border-white/5">
-                                    LIVE: {new Date().toLocaleTimeString()}
-                                </span>
-                            </div>
+                            <nav className="hidden md:flex items-center gap-8">
+                                <a className="text-sky-600 border-b-2 border-sky-500 pb-1 font-headline font-semibold" href="#">Overview</a>
+                                <a className="text-slate-500 font-medium hover:text-sky-500 transition-colors duration-300 font-label" href="#">Details</a>
+                                <a className="text-slate-500 font-medium hover:text-sky-500 transition-colors duration-300 font-label" href="#">Archive</a>
+                            </nav>
+                            <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-90">
+                                <span className="material-symbols-outlined text-slate-600">search</span>
+                            </button>
                         </div>
                     </header>
 
-                    {/* Map */}
-                    <section className="mb-10">
-                        <div id="map" ref={mapRef} className="shadow-2xl border border-white/10 relative ring-1 ring-white/5">
-                             {/* Map Legend Overlay */}
-                             <div className="absolute top-3 right-3 bg-slate-950/90 backdrop-blur border border-white/10 p-3 rounded-lg shadow-2xl text-xs font-bold space-y-2 z-[1000] text-slate-300 uppercase tracking-tighter">
-                                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span> Local Active</div>
-                                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-red-900/50 border border-red-500 rounded-full"></span> Statewide</div>
-                                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-slate-600 rounded-full border border-slate-500"></span> Recent</div>
+                    <main className="pt-20">
+                        {/* ── Hero Map ── */}
+                        <section className="relative w-full h-[442px] min-h-[400px] overflow-hidden bg-slate-200">
+                            <div className="absolute inset-0 z-0" ref={mapRef} id="map"></div>
+
+                            {/* Location card */}
+                            <div className="absolute bottom-8 left-8 z-20">
+                                <div className="glass-panel p-5 rounded-xl shadow-xl max-w-xs">
+                                    {location.countyName ? (
+                                        <>
+                                            <h2 className="text-2xl font-headline font-extrabold text-on-surface mb-0.5">
+                                                {location.countyName} County
+                                            </h2>
+                                            <p className="text-sm text-on-surface-variant font-label">
+                                                {location.stateName}, US &bull; {location.lat?.toFixed(4)}° N, {Math.abs(location.lon)?.toFixed(4)}° W
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-on-surface-variant font-label animate-pulse">Detecting location…</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Active alert badge */}
+                            {totalActive > 0 && (
+                                <div className="absolute top-6 left-8 z-20">
+                                    <div className="glass-panel px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-error rounded-full animate-pulse"></span>
+                                        <span className="text-sm font-bold text-error font-label">
+                                            {totalActive} Active Alert{totalActive > 1 ? 's' : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Legend */}
+                            <div className="absolute bottom-8 right-8 z-20 glass-panel px-4 py-3 rounded-xl text-xs font-label font-bold space-y-1.5 text-on-surface-variant hidden sm:block">
+                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#005f98]"></span>Local Active</div>
+                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#0099f0]"></span>State Active</div>
+                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#94a3b8]"></span>Recent</div>
+                            </div>
+                        </section>
+
+                        {/* ── Bento Grid ── */}
+                        <div className="max-w-7xl mx-auto px-8 py-16">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+
+                                {/* ── Main Alerts Column ── */}
+                                <div className="md:col-span-8 space-y-12">
+
+                                    {/* County Alerts */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-8">
+                                            <h3 className="text-xl font-headline font-bold flex items-center gap-2">
+                                                <span className="w-1.5 h-6 bg-primary rounded-full"></span>
+                                                {location.countyName ? `${location.countyName} County Alerts` : 'County Alerts'}
+                                            </h3>
+                                            {!alertsLoading && localActiveAlerts.length > 0 && (
+                                                <span className="px-3 py-1 bg-primary-container/20 text-primary text-xs font-bold rounded-full font-label">
+                                                    {localActiveAlerts.length} ACTIVE
+                                                </span>
+                                            )}
+                                        </div>
+                                        {alertsLoading ? (
+                                            <div className="glass-panel p-8 rounded-2xl flex items-center gap-4">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary flex-shrink-0"></div>
+                                                <p className="text-on-surface-variant text-sm font-label">Accessing NWS database…</p>
+                                            </div>
+                                        ) : localActiveAlerts.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {localActiveAlerts.map(a => <ActiveAlertCard key={a.id} alert={a} />)}
+                                            </div>
+                                        ) : (
+                                            <div className="glass-panel p-8 rounded-2xl flex items-center gap-4 text-on-surface-variant">
+                                                <span className="material-symbols-outlined text-3xl text-emerald-400">check_circle</span>
+                                                <div>
+                                                    <p className="font-bold text-on-surface font-headline">No Active County Alerts</p>
+                                                    <p className="text-sm font-label">No current alerts for your county.</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Statewide Active Alerts */}
+                                    <div className="bg-surface-container-low/40 rounded-3xl p-8">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <h3 className="text-xl font-headline font-bold flex items-center gap-2">
+                                                <span className="w-1.5 h-6 bg-slate-400 rounded-full"></span>
+                                                {location.stateName ? `${location.stateName} State Alerts` : 'State Alerts'}
+                                            </h3>
+                                            {!alertsLoading && statewideActiveAlerts.length > 0 && (
+                                                <span className="px-3 py-1 bg-slate-200 text-slate-600 text-xs font-bold rounded-full font-label">
+                                                    {statewideActiveAlerts.length} ACTIVE
+                                                </span>
+                                            )}
+                                        </div>
+                                        {alertsLoading ? (
+                                            <p className="text-sm text-on-surface-variant italic font-label">Loading…</p>
+                                        ) : statewideActiveAlerts.length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {statewideActiveAlerts.map(a => <CompactAlertCard key={a.id} alert={a} />)}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm italic text-on-surface-variant font-label">No active statewide alerts.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Past 7 Days (collapsible) */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-xl font-headline font-bold flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-slate-300 rounded-full"></span>
+                                            Recent Activity — Past 7 Days
+                                        </h3>
+                                        <CollapsibleSection
+                                            title="Local Recent"
+                                            count={localRecentAlerts.length}
+                                            icon="location_on"
+                                            defaultOpen={true}
+                                        >
+                                            {localRecentAlerts.map(a => <CompactAlertCard key={a.id} alert={a} />)}
+                                        </CollapsibleSection>
+                                        <CollapsibleSection
+                                            title="Statewide Recent"
+                                            count={statewideRecentAlerts.length}
+                                            icon="map"
+                                            defaultOpen={false}
+                                        >
+                                            {statewideRecentAlerts.map(a => <CompactAlertCard key={a.id} alert={a} />)}
+                                        </CollapsibleSection>
+                                    </div>
+                                </div>
+
+                                {/* ── Sidebar ── */}
+                                <div className="md:col-span-4 space-y-8">
+
+                                    {/* Atmospheric Status */}
+                                    <div className="glass-panel p-8 rounded-3xl shadow-xl shadow-slate-900/5 overflow-hidden relative">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none"></div>
+                                        <h4 className="text-xs font-label font-bold text-primary uppercase tracking-widest mb-6">Atmospheric Status</h4>
+                                        {weather ? (
+                                            <div className="space-y-6">
+                                                <div className="flex justify-between items-end">
+                                                    <div>
+                                                        <p className="text-slate-500 text-xs font-label mb-1">Current Temperature</p>
+                                                        <p className="text-5xl font-headline font-extrabold text-on-surface">{Math.round(weather.temperature_2m)}°</p>
+                                                    </div>
+                                                    <span className="material-symbols-outlined text-sky-400 text-4xl mb-1" style={{fontVariationSettings:"'FILL' 1"}}>
+                                                        {getWeatherIcon(weather.weather_code)}
+                                                    </span>
+                                                </div>
+                                                <div className="pt-6 border-t border-outline-variant/10 grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-tighter font-label">Humidity</p>
+                                                        <p className="text-lg font-headline font-bold">{weather.relative_humidity_2m}%</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-tighter font-label">UV Index</p>
+                                                        <p className="text-lg font-headline font-bold">{getUVLabel(weather.uv_index)} {Math.round(weather.uv_index)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-tighter font-label">Pressure</p>
+                                                        <p className="text-lg font-headline font-bold">{Math.round(weather.surface_pressure)} hPa</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-tighter font-label">Wind</p>
+                                                        <p className="text-lg font-headline font-bold">{Math.round(weather.wind_speed_10m)} mph</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-3 text-on-surface-variant">
+                                                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary flex-shrink-0"></div>
+                                                <p className="text-sm font-label">Loading weather…</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 48-Hour Outlook */}
+                                    {forecast.length > 0 && (
+                                        <div className="glass-panel p-8 rounded-3xl">
+                                            <h4 className="text-sm font-headline font-bold mb-6">48-Hour Outlook</h4>
+                                            <div className="space-y-3">
+                                                {forecast.map((day, i) => (
+                                                    <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/50 transition-colors">
+                                                        <span className="font-label text-sm font-medium w-12">{day.label}</span>
+                                                        <span className="material-symbols-outlined text-sky-400" style={{fontVariationSettings:"'FILL' 1"}}>partly_cloudy_day</span>
+                                                        <span className="font-headline font-bold text-sm">
+                                                            {day.high}° <span className="text-slate-400 font-normal">/ {day.low}°</span>
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Alert Summary */}
+                                    <div className="glass-panel p-6 rounded-2xl">
+                                        <h4 className="text-xs font-label font-bold text-on-surface-variant uppercase tracking-widest mb-4">Alert Summary</h4>
+                                        <div className="space-y-3">
+                                            {[
+                                                { label: "County Active", value: localActiveAlerts.length },
+                                                { label: "Statewide Active", value: statewideActiveAlerts.length },
+                                                { label: "Local (Past 7d)", value: localRecentAlerts.length },
+                                                { label: "Statewide (Past 7d)", value: statewideRecentAlerts.length },
+                                            ].map(({ label, value }) => (
+                                                <div key={label} className="flex justify-between items-center">
+                                                    <span className="text-sm font-label text-on-surface-variant">{label}</span>
+                                                    <span className="font-headline font-bold text-on-surface">{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-[10px] text-on-surface-variant font-label mt-4 pt-3 border-t border-outline-variant/10">
+                                            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; NWS + Open-Meteo
+                                        </p>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
-                    </section>
+                    </main>
 
-                    {/* Alerts Lists */}
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center p-20 space-y-4">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-                            <p className="text-slate-500 text-sm uppercase">Accessing NWS Database...</p>
+                    {/* ── Footer ── */}
+                    <footer className="w-full py-12 px-8 bg-slate-50/50 border-t border-outline-variant/10">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sky-500">cloud_queue</span>
+                                <span className="font-headline font-bold text-slate-700">SkyAlert Atmospheric Systems</span>
+                            </div>
+                            <p className="text-xs text-on-surface-variant font-label">
+                                Alert data: <a href="https://www.weather.gov" className="hover:text-primary transition-colors">NWS API</a> &bull; Weather: <a href="https://open-meteo.com" className="hover:text-primary transition-colors">Open-Meteo</a> &bull; Geocoding: Nominatim
+                            </p>
                         </div>
-                    ) : (
-                        <div className="space-y-6">
-                            
-                            {/* 1. Local Active */}
-                            <CollapsibleSection 
-                                title={`LOCAL ACTIVE (${location.countyName?.toUpperCase()})`} 
-                                count={localActiveAlerts.length} 
-                                isOpenDefault={true}
-                                color="red"
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>}
-                            >
-                                {localActiveAlerts.map(alert => <AlertCard key={alert.id} alert={alert} type="active" />)}
-                            </CollapsibleSection>
-
-                            {/* 2. Local Recent */}
-                            <CollapsibleSection 
-                                title={`LOCAL RECENT (PAST 7D)`} 
-                                count={localRecentAlerts.length} 
-                                isOpenDefault={true}
-                                color="gray"
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
-                            >
-                                {localRecentAlerts.map(alert => <AlertCard key={alert.id} alert={alert} type="recent" />)}
-                            </CollapsibleSection>
-
-                            {/* 3. Statewide Active */}
-                            <CollapsibleSection 
-                                title="STATEWIDE ACTIVE" 
-                                count={statewideActiveAlerts.length} 
-                                isOpenDefault={false}
-                                color="slate"
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>}
-                            >
-                                {statewideActiveAlerts.map(alert => <AlertCard key={alert.id} alert={alert} type="active" />)}
-                            </CollapsibleSection>
-
-                            {/* 4. Statewide Recent */}
-                            <CollapsibleSection 
-                                title="STATEWIDE RECENT (PAST 7D)" 
-                                count={statewideRecentAlerts.length} 
-                                isOpenDefault={false}
-                                color="slate"
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>}
-                            >
-                                {statewideRecentAlerts.map(alert => <AlertCard key={alert.id} alert={alert} type="recent" />)}
-                            </CollapsibleSection>
-
-                        </div>
-                    )}
-                </div>
+                    </footer>
+                </>
             );
         };
 
