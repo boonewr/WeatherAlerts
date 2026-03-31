@@ -245,6 +245,49 @@
             );
         };
 
+        // ── Active Alerts Section (collapsible, open by default) ─────────────
+        const ActiveAlertsSection = ({ title, count, accentColor = 'primary', loading, emptyMessage, children }) => {
+            const [open, setOpen] = useState(true);
+            const accentBar = accentColor === 'primary' ? 'bg-primary' : 'bg-slate-400';
+            const badgeClass = accentColor === 'primary'
+                ? 'bg-primary-container/20 text-primary'
+                : 'bg-slate-200 text-slate-600';
+            return (
+                <div>
+                    <button onClick={() => setOpen(o => !o)}
+                        className="w-full flex items-center justify-between gap-3 py-2 hover:opacity-75 transition-opacity text-left">
+                        <h3 className="text-xl font-headline font-bold flex items-center gap-2 min-w-0">
+                            <span className={`w-1.5 h-6 ${accentBar} rounded-full flex-shrink-0`}></span>
+                            <span className="min-w-0">{title}</span>
+                        </h3>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {!loading && count > 0 && (
+                                <span className={`px-3 py-1 ${badgeClass} text-xs font-bold rounded-full font-label whitespace-nowrap`}>
+                                    {count} ACTIVE
+                                </span>
+                            )}
+                            <span className={`material-symbols-outlined text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>expand_more</span>
+                        </div>
+                    </button>
+                    {open && (
+                        <div className="mt-6">
+                            {loading ? (
+                                <div className="glass-panel p-8 rounded-2xl flex items-center gap-4">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary flex-shrink-0"></div>
+                                    <p className="text-on-surface-variant text-sm font-label">Accessing NWS database…</p>
+                                </div>
+                            ) : count > 0 ? children : (
+                                <div className="glass-panel p-6 rounded-2xl flex items-center gap-4 text-on-surface-variant">
+                                    <span className="material-symbols-outlined text-2xl text-emerald-400">check_circle</span>
+                                    <p className="text-sm font-label">{emptyMessage}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         // ── Main App ──────────────────────────────────────────────────────────
         const App = () => {
             const [location, setLocation] = useState({ lat: null, lon: null, stateCode: null, stateName: null, countyName: null });
@@ -392,7 +435,7 @@
                             params: {
                                 latitude: location.lat,
                                 longitude: location.lon,
-                                current: "temperature_2m,relative_humidity_2m,surface_pressure,uv_index,visibility,weather_code,wind_speed_10m",
+                                current: "temperature_2m,apparent_temperature,relative_humidity_2m,surface_pressure,uv_index,visibility,weather_code,wind_speed_10m",
                                 hourly: "temperature_2m",
                                 temperature_unit: "fahrenheit",
                                 wind_speed_unit: "mph",
@@ -499,13 +542,29 @@
                                 <a className="text-slate-500 font-medium hover:text-sky-500 transition-colors duration-300 font-label" href="#">Details</a>
                                 <a className="text-slate-500 font-medium hover:text-sky-500 transition-colors duration-300 font-label" href="#">Archive</a>
                             </nav>
-                            <button
-                                onClick={() => setSearchOpen(o => !o)}
-                                className={`p-2 rounded-full transition-colors active:scale-90 ${searchOpen ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`}>
-                                <span className={`material-symbols-outlined ${searchOpen ? 'text-primary' : 'text-slate-600'}`}>
-                                    {searchOpen ? 'close' : 'search'}
-                                </span>
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    title="Use my location"
+                                    onClick={() => {
+                                        setSearchOpen(false);
+                                        if (navigator.geolocation) {
+                                            navigator.geolocation.getCurrentPosition(
+                                                pos => loadFromCoords(pos.coords.latitude, pos.coords.longitude),
+                                                () => {}
+                                            );
+                                        }
+                                    }}
+                                    className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-90">
+                                    <span className="material-symbols-outlined text-slate-600">my_location</span>
+                                </button>
+                                <button
+                                    onClick={() => setSearchOpen(o => !o)}
+                                    className={`p-2 rounded-full transition-colors active:scale-90 ${searchOpen ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`}>
+                                    <span className={`material-symbols-outlined ${searchOpen ? 'text-primary' : 'text-slate-600'}`}>
+                                        {searchOpen ? 'close' : 'search'}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
                     </header>
 
@@ -635,62 +694,31 @@
                                 {/* ── Main Alerts Column ── */}
                                 <div className="md:col-span-8 space-y-12">
 
-                                    {/* County Alerts */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-8">
-                                            <h3 className="text-xl font-headline font-bold flex items-center gap-2">
-                                                <span className="w-1.5 h-6 bg-primary rounded-full"></span>
-                                                {location.countyName ? `${location.countyName} County Alerts` : 'County Alerts'}
-                                            </h3>
-                                            {!alertsLoading && localActiveAlerts.length > 0 && (
-                                                <span className="px-3 py-1 bg-primary-container/20 text-primary text-xs font-bold rounded-full font-label">
-                                                    {localActiveAlerts.length} ACTIVE
-                                                </span>
-                                            )}
+                                    {/* County Active Alerts */}
+                                    <ActiveAlertsSection
+                                        title={location.countyName ? `${location.countyName} County Alerts` : 'County Alerts'}
+                                        count={localActiveAlerts.length}
+                                        accentColor="primary"
+                                        loading={alertsLoading}
+                                        emptyMessage="No current alerts for your county."
+                                    >
+                                        <div className="space-y-4">
+                                            {localActiveAlerts.map(a => <ActiveAlertCard key={a.id} alert={a} />)}
                                         </div>
-                                        {alertsLoading ? (
-                                            <div className="glass-panel p-8 rounded-2xl flex items-center gap-4">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary flex-shrink-0"></div>
-                                                <p className="text-on-surface-variant text-sm font-label">Accessing NWS database…</p>
-                                            </div>
-                                        ) : localActiveAlerts.length > 0 ? (
-                                            <div className="space-y-4">
-                                                {localActiveAlerts.map(a => <ActiveAlertCard key={a.id} alert={a} />)}
-                                            </div>
-                                        ) : (
-                                            <div className="glass-panel p-8 rounded-2xl flex items-center gap-4 text-on-surface-variant">
-                                                <span className="material-symbols-outlined text-3xl text-emerald-400">check_circle</span>
-                                                <div>
-                                                    <p className="font-bold text-on-surface font-headline">No Active County Alerts</p>
-                                                    <p className="text-sm font-label">No current alerts for your county.</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                    </ActiveAlertsSection>
 
                                     {/* Statewide Active Alerts */}
-                                    <div className="bg-surface-container-low/40 rounded-3xl p-8">
-                                        <div className="flex items-center justify-between mb-8">
-                                            <h3 className="text-xl font-headline font-bold flex items-center gap-2">
-                                                <span className="w-1.5 h-6 bg-slate-400 rounded-full"></span>
-                                                {location.stateName ? `${location.stateName} State Alerts` : 'State Alerts'}
-                                            </h3>
-                                            {!alertsLoading && statewideActiveAlerts.length > 0 && (
-                                                <span className="px-3 py-1 bg-slate-200 text-slate-600 text-xs font-bold rounded-full font-label">
-                                                    {statewideActiveAlerts.length} ACTIVE
-                                                </span>
-                                            )}
+                                    <ActiveAlertsSection
+                                        title={location.stateName ? `${location.stateName} State Alerts` : 'State Alerts'}
+                                        count={statewideActiveAlerts.length}
+                                        accentColor="slate"
+                                        loading={alertsLoading}
+                                        emptyMessage="No active statewide alerts."
+                                    >
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {statewideActiveAlerts.map(a => <CompactAlertCard key={a.id} alert={a} />)}
                                         </div>
-                                        {alertsLoading ? (
-                                            <p className="text-sm text-on-surface-variant italic font-label">Loading…</p>
-                                        ) : statewideActiveAlerts.length > 0 ? (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                {statewideActiveAlerts.map(a => <CompactAlertCard key={a.id} alert={a} />)}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm italic text-on-surface-variant font-label">No active statewide alerts.</p>
-                                        )}
-                                    </div>
+                                    </ActiveAlertsSection>
 
                                     {/* Past 7 Days (collapsible) */}
                                     <div className="space-y-4">
@@ -730,6 +758,7 @@
                                                     <div>
                                                         <p className="text-slate-500 text-xs font-label mb-1">Current Temperature</p>
                                                         <p className="text-5xl font-headline font-extrabold text-on-surface">{Math.round(weather.temperature_2m)}°</p>
+                                                        <p className="text-xs text-on-surface-variant font-label mt-1">Feels like {Math.round(weather.apparent_temperature)}°</p>
                                                     </div>
                                                     <span className="material-symbols-outlined text-sky-400 text-4xl mb-1" style={{fontVariationSettings:"'FILL' 1"}}>
                                                         {getWeatherIcon(weather.weather_code)}
