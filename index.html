@@ -116,6 +116,77 @@
             return "warning";
         };
 
+        // Generic event names that benefit from description-based re-titling
+        const GENERIC_EVENTS = new Set([
+            "special weather statement", "special statement",
+            "administrative message", "public information statement",
+            "hazardous weather outlook",
+        ]);
+
+        const parseAlertTitle = (event, description) => {
+            if (!GENERIC_EVENTS.has((event || "").toLowerCase())) return event;
+            const t = (description || "").toLowerCase();
+            if (t.match(/wild\s*fire|fire weather|red flag|fire danger|brush fire|grass fire/)) return "Fire Weather Statement";
+            if (t.match(/flash flood/))             return "Flash Flood Statement";
+            if (t.match(/\bflood/))                 return "Flood Statement";
+            if (t.match(/tornado/))                 return "Tornado Statement";
+            if (t.match(/hurricane|tropical storm/)) return "Tropical Statement";
+            if (t.match(/blizzard/))                return "Blizzard Statement";
+            if (t.match(/winter storm/))            return "Winter Storm Statement";
+            if (t.match(/snow|sleet|wintry|winter weather|freezing rain/)) return "Winter Weather Statement";
+            if (t.match(/hard freeze|killing freeze|frost/)) return "Frost\/Freeze Statement";
+            if (t.match(/\bice\b|icing/))           return "Ice Statement";
+            if (t.match(/excessive heat|extreme heat/)) return "Excessive Heat Statement";
+            if (t.match(/\bheat\b/))                return "Heat Statement";
+            if (t.match(/dense fog/))               return "Dense Fog Statement";
+            if (t.match(/\bfog\b/))                 return "Fog Statement";
+            if (t.match(/high wind|severe wind|damaging wind|strong wind/)) return "High Wind Statement";
+            if (t.match(/gusty wind|\bwind\b/))     return "Wind Statement";
+            if (t.match(/severe thunderstorm/))     return "Severe Thunderstorm Statement";
+            if (t.match(/thunderstorm/))            return "Thunderstorm Statement";
+            if (t.match(/rip current/))             return "Rip Current Statement";
+            if (t.match(/drought/))                 return "Drought Statement";
+            if (t.match(/air quality|smoke/))       return "Air Quality Statement";
+            if (t.match(/surf|coastal/))            return "Coastal Statement";
+            return event;
+        };
+
+        // Returns color classes for border, icon background, and icon text
+        const getAlertColors = (event) => {
+            const e = (event || "").toLowerCase();
+            if (e.match(/tornado warning|severe thunderstorm warning|flash flood (warning|emergency)|extreme wind warning|hurricane warning/))
+                return { border: 'border-red-500',    iconBg: 'bg-red-100',    iconText: 'text-red-600'    };
+            if (e.match(/tornado watch|severe thunderstorm watch|flash flood watch/))
+                return { border: 'border-orange-500', iconBg: 'bg-orange-100', iconText: 'text-orange-600' };
+            if (e.match(/fire|red flag/))
+                return { border: 'border-orange-500', iconBg: 'bg-orange-100', iconText: 'text-orange-600' };
+            if (e.match(/blizzard|winter storm warning|ice storm/))
+                return { border: 'border-blue-500',   iconBg: 'bg-blue-100',   iconText: 'text-blue-600'   };
+            if (e.match(/winter|snow|sleet|frost|freeze|ice/))
+                return { border: 'border-blue-400',   iconBg: 'bg-blue-50',    iconText: 'text-blue-500'   };
+            if (e.match(/flash flood/))
+                return { border: 'border-red-400',    iconBg: 'bg-red-50',     iconText: 'text-red-500'    };
+            if (e.match(/flood/))
+                return { border: 'border-cyan-500',   iconBg: 'bg-cyan-100',   iconText: 'text-cyan-600'   };
+            if (e.match(/excessive heat|extreme heat/))
+                return { border: 'border-red-400',    iconBg: 'bg-red-50',     iconText: 'text-red-500'    };
+            if (e.match(/heat/))
+                return { border: 'border-orange-400', iconBg: 'bg-orange-50',  iconText: 'text-orange-500' };
+            if (e.match(/high wind|wind warning|wind advisory/))
+                return { border: 'border-amber-500',  iconBg: 'bg-amber-100',  iconText: 'text-amber-600'  };
+            if (e.match(/thunderstorm|tornado|squall/))
+                return { border: 'border-amber-400',  iconBg: 'bg-amber-50',   iconText: 'text-amber-600'  };
+            if (e.match(/fog/))
+                return { border: 'border-slate-400',  iconBg: 'bg-slate-100',  iconText: 'text-slate-500'  };
+            if (e.match(/warning/))
+                return { border: 'border-yellow-400', iconBg: 'bg-yellow-50',  iconText: 'text-yellow-600' };
+            if (e.match(/watch/))
+                return { border: 'border-yellow-300', iconBg: 'bg-yellow-50',  iconText: 'text-yellow-500' };
+            if (e.match(/advisory/))
+                return { border: 'border-sky-400',    iconBg: 'bg-sky-50',     iconText: 'text-sky-500'    };
+            return   { border: 'border-slate-300',    iconBg: 'bg-slate-100',  iconText: 'text-slate-500'  };
+        };
+
         const getWeatherIcon = (code) => {
             if (code === 0) return "wb_sunny";
             if (code <= 3) return "partly_cloudy_day";
@@ -150,15 +221,18 @@
         // ── Active Alert Card (prominent, glass panel) ────────────────────────
         const ActiveAlertCard = ({ alert }) => {
             const [expanded, setExpanded] = useState(false);
-            const icon = getAlertIcon(alert.properties.event);
+            const { event, description } = alert.properties;
+            const title = parseAlertTitle(event, description);
+            const icon = getAlertIcon(title);
+            const colors = getAlertColors(title);
             return (
-                <div className="glass-panel p-6 rounded-2xl hover:shadow-2xl transition-all duration-500 flex items-start gap-5 border-l-4 border-primary">
-                    <div className="bg-primary/10 p-3 rounded-xl flex-shrink-0">
-                        <span className="material-symbols-outlined text-primary text-2xl">{icon}</span>
+                <div className={`glass-panel p-6 rounded-2xl hover:shadow-2xl transition-all duration-500 flex items-start gap-5 border-l-4 ${colors.border}`}>
+                    <div className={`${colors.iconBg} p-3 rounded-xl flex-shrink-0`}>
+                        <span className={`material-symbols-outlined ${colors.iconText} text-2xl`}>{icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1 gap-2">
-                            <h4 className="text-base font-headline font-bold text-on-surface leading-tight">{alert.properties.event}</h4>
+                            <h4 className="text-base font-headline font-bold text-on-surface leading-tight">{title}</h4>
                             <span className="text-xs font-label text-on-surface-variant flex-shrink-0">{timeAgo(alert.properties.effective)}</span>
                         </div>
                         <p className="text-xs text-on-surface-variant font-label mb-2">{alert.properties.areaDesc}</p>
@@ -188,15 +262,18 @@
         // ── Compact Alert Card (statewide / recent grid) ──────────────────────
         const CompactAlertCard = ({ alert }) => {
             const [expanded, setExpanded] = useState(false);
-            const icon = getAlertIcon(alert.properties.event);
+            const { event, description } = alert.properties;
+            const title = parseAlertTitle(event, description);
+            const icon = getAlertIcon(title);
+            const colors = getAlertColors(title);
             return (
                 <div className="bg-white/40 p-4 rounded-xl hover:bg-white/60 transition-colors cursor-pointer" onClick={() => setExpanded(!expanded)}>
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                            <span className="material-symbols-outlined text-slate-500 text-lg">{icon}</span>
+                        <div className={`w-9 h-9 rounded-full ${colors.iconBg} flex items-center justify-center flex-shrink-0`}>
+                            <span className={`material-symbols-outlined ${colors.iconText} text-lg`}>{icon}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate">{alert.properties.event}</p>
+                            <p className="text-sm font-bold truncate">{title}</p>
                             <p className="text-xs text-on-surface-variant truncate">
                                 {alert.properties.areaDesc?.split(';')[0]?.trim()} • {timeAgo(alert.properties.effective)}
                             </p>
@@ -206,10 +283,14 @@
                         </span>
                     </div>
                     {expanded && (
-                        <div className="mt-3 text-xs text-on-surface-variant font-label space-y-1 border-t border-outline-variant/10 pt-3">
-                            <p><span className="font-semibold">Effective:</span> {fmtTime(alert.properties.effective)}</p>
-                            <p><span className="font-semibold">Expires:</span> {fmtTime(alert.properties.expires)}</p>
-                            {alert.properties.headline && <p className="mt-1">{alert.properties.headline}</p>}
+                        <div className="mt-3 text-xs text-on-surface-variant font-label space-y-2 border-t border-outline-variant/10 pt-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-4">
+                                <p><span className="font-semibold">Effective:</span> {fmtTime(alert.properties.effective)}</p>
+                                <p><span className="font-semibold">Expires:</span> {fmtTime(alert.properties.expires)}</p>
+                            </div>
+                            <div className="p-3 bg-black/5 rounded-lg border border-outline-variant/20 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                                {alert.properties.description || "No description available."}
+                            </div>
                         </div>
                     )}
                 </div>
