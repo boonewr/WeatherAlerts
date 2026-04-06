@@ -9,7 +9,8 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
 
     <!-- Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -393,10 +394,16 @@
                     const stateCode = STATE_MAPPING[stateName];
                     const countyName = (address.county || "").replace(/\s+(County|Parish|Borough)$/i, "");
                     if (!stateCode) throw new Error(`Unknown state: ${stateName}`);
+
                     setAlertsLoading(true);
                     setWeather(null);
                     setForecast([]);
-                    setLocation({ lat: latitude, lon: longitude, stateCode, stateName, countyName });
+
+                    const locData = { lat: latitude, lon: longitude, stateCode, stateName, countyName };
+                    setLocation(locData);
+
+                    // Cache the fully resolved location
+                    localStorage.setItem('skyalert_location', JSON.stringify(locData));
                 } catch (err) {
                     setError("Failed to determine location. " + err.message);
                     setAlertsLoading(false);
@@ -405,11 +412,24 @@
 
             // 1. Geolocation + reverse geocode
             useEffect(() => {
+                const cachedLocation = localStorage.getItem('skyalert_location');
+
+                if (cachedLocation) {
+                    try {
+                        setLocation(JSON.parse(cachedLocation));
+                        return; // Exit early to prevent redundant geolocation prompt
+                    } catch (e) {
+                        console.error("Cache parsing failed, falling back to geolocation.");
+                        localStorage.removeItem('skyalert_location');
+                    }
+                }
+
                 if (!navigator.geolocation) {
                     setError("Geolocation is not supported by your browser.");
                     setAlertsLoading(false);
                     return;
                 }
+
                 navigator.geolocation.getCurrentPosition(
                     (pos) => loadFromCoords(pos.coords.latitude, pos.coords.longitude),
                     () => {
@@ -636,7 +656,7 @@
                                         if (navigator.geolocation) {
                                             navigator.geolocation.getCurrentPosition(
                                                 pos => loadFromCoords(pos.coords.latitude, pos.coords.longitude),
-                                                () => {}
+                                                () => { }
                                             );
                                         }
                                     }}
