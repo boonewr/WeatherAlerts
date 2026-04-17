@@ -199,6 +199,34 @@
             weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
+        const getAffectedAreas = (alert) => (alert.properties?.areaDesc || "")
+            .split(';')
+            .map(area => area.trim())
+            .filter(Boolean);
+
+        const getAlertZoneGeometries = async (alert, zoneGeometryCacheRef) => {
+            if (alert.geometry || !alert.properties.affectedZones?.length) return [];
+            const zoneUrls = alert.properties.affectedZones.slice(0, 80);
+            const geometries = await Promise.all(zoneUrls.map(async (url) => {
+                if (!zoneGeometryCacheRef.current[url]) {
+                    zoneGeometryCacheRef.current[url] = axios.get(url, {
+                        headers: { Accept: 'application/geo+json' }
+                    })
+                        .then(res => res.data?.geometry || null)
+                        .catch(() => null);
+                }
+                return zoneGeometryCacheRef.current[url];
+            }));
+            return geometries.filter(Boolean);
+        };
+
+        const enrichAlertsWithZoneGeometries = async (alerts, zoneGeometryCacheRef) => Promise.all(
+            alerts.map(async (alert) => {
+                const zoneGeometries = await getAlertZoneGeometries(alert, zoneGeometryCacheRef);
+                return zoneGeometries.length ? { ...alert, zoneGeometries } : alert;
+            })
+        );
+
         // ── Alert Card ────────────────────────────────────────────────────────
         const AlertCard = ({ alert }) => {
             const [expanded, setExpanded] = useState(false);
@@ -206,6 +234,7 @@
             const title = parseAlertTitle(event, description);
             const icon = getAlertIcon(title);
             const colors = getAlertColors(title);
+            const affectedAreas = getAffectedAreas(alert);
             return (
                 <div className={`border-l-4 ${colors.border} bg-white p-4 rounded-r-md border-y border-r border-gray-200 shadow-sm`}>
                     <div className="flex justify-between items-start mb-2">
@@ -227,8 +256,22 @@
                         </span>
                     </div>
                     {expanded && (
-                        <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200 max-h-48 overflow-y-auto whitespace-pre-wrap text-xs text-gray-600 leading-relaxed">
-                            {alert.properties.description || "No description available."}
+                        <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200 max-h-64 overflow-y-auto text-xs text-gray-600 leading-relaxed">
+                            {affectedAreas.length > 0 && (
+                                <div className="mb-3 pb-3 border-b border-gray-200">
+                                    <div className="font-semibold text-gray-800 mb-1">Affected counties/areas</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {affectedAreas.map((area, i) => (
+                                            <span key={`${area}-${i}`} className="px-2 py-1 bg-white border border-gray-200 rounded text-gray-700">
+                                                {area}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="whitespace-pre-wrap">
+                                {alert.properties.description || "No description available."}
+                            </div>
                         </div>
                     )}
                     <button
@@ -367,6 +410,7 @@
             const mapInstanceRef = useRef(null);
             const layerGroupRef = useRef(null);
             const userMarkerRef = useRef(null);
+            const zoneGeometryCacheRef = useRef({});
 
             const categorizeAlerts = (alerts, countyName) => {
                 let local = [], statewide = [];
@@ -461,6 +505,7 @@
             // 2. NWS Alerts
             useEffect(() => {
                 if (!location.stateCode) return;
+                let cancelled = false;
                 const fetchAlerts = async () => {
                     try {
                         const startTime = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('.')[0] + "Z";
@@ -480,12 +525,26 @@
                         const recent = history.filter(a => !activeIds.has(a.id));
                         const ca = categorizeAlerts(active, location.countyName);
                         const cr = categorizeAlerts(recent, location.countyName);
+                        if (cancelled) return;
                         setLocalActiveAlerts(ca.local);
                         setStatewideActiveAlerts(ca.statewide);
                         setLocalRecentAlerts(cr.local);
                         setStatewideRecentAlerts(cr.statewide);
                         setAlertsLoading(false);
+
+                        const [activeWithZoneGeometries, recentWithZoneGeometries] = await Promise.all([
+                            enrichAlertsWithZoneGeometries(active, zoneGeometryCacheRef),
+                            enrichAlertsWithZoneGeometries(recent, zoneGeometryCacheRef)
+                        ]);
+                        const enrichedActive = categorizeAlerts(activeWithZoneGeometries, location.countyName);
+                        const enrichedRecent = categorizeAlerts(recentWithZoneGeometries, location.countyName);
+                        if (cancelled) return;
+                        setLocalActiveAlerts(enrichedActive.local);
+                        setStatewideActiveAlerts(enrichedActive.statewide);
+                        setLocalRecentAlerts(enrichedRecent.local);
+                        setStatewideRecentAlerts(enrichedRecent.statewide);
                     } catch (err) {
+                        if (cancelled) return;
                         let msg = "Failed to fetch weather alerts.";
                         if (err.response?.data?.detail) msg += `: ${err.response.data.detail}`;
                         else if (err.response?.data?.title) msg += `: ${err.response.data.title}`;
@@ -495,6 +554,7 @@
                     }
                 };
                 fetchAlerts();
+                return () => { cancelled = true; };
             }, [location.stateCode, location.countyName]);
 
             // 3. Open-Meteo current weather + 48h forecast
@@ -568,12 +628,13 @@
                 if (!mapInstanceRef.current || !layerGroupRef.current) return;
                 layerGroupRef.current.clearLayers();
                 const add = (alerts, color, weight) => alerts.forEach(alert => {
-                    if (alert.geometry) {
-                        L.geoJSON(alert.geometry, {
+                    const geometries = alert.geometry ? [alert.geometry] : (alert.zoneGeometries || []);
+                    geometries.forEach(geometry => {
+                        L.geoJSON(geometry, {
                             style: { color, weight, opacity: 0.8, fillOpacity: 0.1 },
                             onEachFeature: (f, layer) => layer.bindPopup(`<b>${alert.properties.event}</b><br>${alert.properties.headline || ''}`)
                         }).addTo(layerGroupRef.current);
-                    }
+                    });
                 });
                 add(statewideRecentAlerts, '#94a3b8', 1);
                 add(localRecentAlerts, '#64748b', 2);
